@@ -79,7 +79,7 @@ function AppShell() {
   const [teamResultToast, setTeamResultToast] = useState(null)
   const [teamAnswerToast, setTeamAnswerToast] = useState(null)
   const [moderatorResultToasts, setModeratorResultToasts] = useState([])
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api'
+  const API_BASE = import.meta.env.VITE_API_BASE || 'https://financial-football.onrender.com/api'
   const SOCKET_BASE = API_BASE.replace(/\/api$/, '')
   const apiBaseHost = useMemo(() => API_BASE.replace(/\/api$/, ''), [API_BASE])
   const normalizeAvatar = useCallback(
