@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { constants, security } from '../config/index.js'
 import { subscribeToTournamentUpdates } from '../services/tournamentEvents.js'
+import { getResetMatchPasskeyMessage, verifyResetMatchPasskey } from '../services/resetMatchPasskey.js'
 import {
   liveMatchEmitter,
   joinMatch,
@@ -186,12 +187,42 @@ const registerSocketHandlers = (io) => {
       }
     })
 
-    socket.on('liveMatch:reset', async ({ matchId }) => {
-      const match = joinMatch(matchId)
-      if (!match || !canControlMatch(socket, match)) return
-      const updated = await resetMatch(matchId)
-      if (updated) {
+    socket.on('liveMatch:reset', async ({ matchId, passkey }, ack) => {
+      const respond = (payload) => {
+        if (typeof ack === 'function') {
+          ack(payload)
+        }
+      }
+
+      try {
+        const match = joinMatch(matchId)
+        if (!match || !canControlMatch(socket, match)) {
+          respond({ ok: false, reason: 'unauthorized', message: 'Not authorized to reset this match.' })
+          return
+        }
+
+        if (socket.data.user?.role === 'moderator') {
+          const verification = await verifyResetMatchPasskey(passkey)
+          if (!verification.ok) {
+            respond({
+              ok: false,
+              reason: verification.reason,
+              message: getResetMatchPasskeyMessage(verification.reason),
+            })
+            return
+          }
+        }
+
+        const updated = await resetMatch(matchId)
+        if (!updated) {
+          respond({ ok: false, reason: 'not-found', message: 'Live match not found.' })
+          return
+        }
+
         io.to(`live-match:${matchId}`).emit('liveMatch:update', { ...updated, serverNow: Date.now() })
+        respond({ ok: true })
+      } catch {
+        respond({ ok: false, reason: 'error', message: 'Unable to reset match right now.' })
       }
     })
 

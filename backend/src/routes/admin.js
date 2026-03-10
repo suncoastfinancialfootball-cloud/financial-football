@@ -14,6 +14,7 @@ import { requireAdmin } from '../middleware/auth.js'
 import { seedModerators, seedQuestions, seedTeams } from '../seeds/initialData.js'
 import { sanitizeTournament } from '../services/tournamentState.js'
 import { removeLiveMatchesForTournament } from '../services/liveMatchEngine.js'
+import { getResetMatchPasskeyMeta, setResetMatchPasskey } from '../services/resetMatchPasskey.js'
 import LiveMatch from '../db/models/liveMatch.js'
 import Tournament from '../db/models/tournament.js'
 
@@ -323,6 +324,32 @@ adminRouter.post('/moderators/:id/password', async (req, res, next) => {
     res.json({ message: 'Password updated', moderator: sanitizeModerator(moderator) })
   } catch (error) {
     next(error)
+  }
+})
+
+adminRouter.get('/reset-match-password', async (_req, res, next) => {
+  try {
+    const meta = await getResetMatchPasskeyMeta()
+    return res.json(meta)
+  } catch (error) {
+    return next(error)
+  }
+})
+
+adminRouter.post('/reset-match-password', async (req, res, next) => {
+  try {
+    const { password } = req.body ?? {}
+    if (!password || !password.trim()) {
+      return res.status(400).json({ message: 'Password is required' })
+    }
+
+    const meta = await setResetMatchPasskey(password, req.user?.sub ?? null)
+    return res.json({
+      message: 'Reset match password updated',
+      ...meta,
+    })
+  } catch (error) {
+    return next(error)
   }
 })
 

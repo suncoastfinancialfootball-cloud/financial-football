@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireUser } from '../middleware/auth.js'
 import LiveMatch from '../db/models/liveMatch.js'
 import { createLiveMatch, joinMatch } from '../services/liveMatchEngine.js'
+import { getResetMatchPasskeyMessage, verifyResetMatchPasskey } from '../services/resetMatchPasskey.js'
 
 const router = Router()
 
@@ -39,6 +40,30 @@ router.post('/', async (req, res, next) => {
       tournamentId,
     })
     return res.status(201).json({ match })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+router.post('/reset/verify', async (req, res, next) => {
+  try {
+    const role = req.user?.role
+    if (role !== 'admin' && role !== 'moderator') {
+      return res.status(403).json({ message: 'Not authorized to verify reset match passkey' })
+    }
+
+    if (role === 'admin') {
+      return res.json({ ok: true })
+    }
+
+    const verification = await verifyResetMatchPasskey(req.body?.passkey)
+    if (!verification.ok) {
+      const message = getResetMatchPasskeyMessage(verification.reason)
+      const status = verification.reason === 'unconfigured' ? 409 : 401
+      return res.status(status).json({ message })
+    }
+
+    return res.json({ ok: true })
   } catch (error) {
     return next(error)
   }

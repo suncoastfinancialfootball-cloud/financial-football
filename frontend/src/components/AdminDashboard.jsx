@@ -8,6 +8,7 @@ import AdminArchiveTab from './admin/AdminArchiveTab'
 import AdminQuestionsTab from './admin/AdminQuestionsTab'
 import AdminProfilesTab from './admin/AdminProfilesTab'
 import AdminAllQuestionsTab from './admin/AdminAllQuestionsTab'
+import AdminResetMatchPasswordTab from './admin/AdminResetMatchPasswordTab'
 
 const NAV_ITEMS = [
   { to: 'overview', label: 'Overview' },
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: 'questions', label: 'Questions' },
   { to: 'all-questions', label: 'All Questions' },
   { to: 'profiles', label: 'Profiles' },
+  { to: 'reset-match-password', label: 'Reset Match Password' },
 ]
 
 export default function AdminDashboard(props) {
@@ -65,6 +67,8 @@ export default function AdminDashboard(props) {
     onSetProfilePassword,
     onDeleteTeamProfile,
     onDeleteModeratorProfile,
+    resetMatchPasskeyMeta,
+    onSetResetMatchPasskey,
   } = props
 
   return (
@@ -220,6 +224,15 @@ export default function AdminDashboard(props) {
                   onSetPassword={onSetProfilePassword}
                   onDeleteTeam={onDeleteTeamProfile}
                   onDeleteModerator={onDeleteModeratorProfile}
+                />
+              }
+            />
+            <Route
+              path="reset-match-password"
+              element={
+                <AdminResetMatchPasswordTab
+                  passkeyMeta={resetMatchPasskeyMeta}
+                  onSetResetMatchPasskey={onSetResetMatchPasskey}
                 />
               }
             />

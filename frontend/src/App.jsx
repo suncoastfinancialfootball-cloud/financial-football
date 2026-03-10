@@ -76,6 +76,10 @@ function AppShell() {
   const [analyticsQuestions, setAnalyticsQuestions] = useState([])
   const [analyticsQuestionHistory, setAnalyticsQuestionHistory] = useState([])
   const [profiles, setProfiles] = useState({ teams: [], moderators: [] })
+  const [resetMatchPasskeyMeta, setResetMatchPasskeyMeta] = useState({
+    configured: false,
+    updatedAt: null,
+  })
   const [teamResultToast, setTeamResultToast] = useState(null)
   const [teamAnswerToast, setTeamAnswerToast] = useState(null)
   const [moderatorResultToasts, setModeratorResultToasts] = useState([])
@@ -944,6 +948,22 @@ function AppShell() {
     [loadProfiles, requestJson],
   )
 
+  const setResetMatchPasskey = useCallback(
+    async (password) => {
+      const result = await requestJson('/admin/reset-match-password', {
+        method: 'POST',
+        auth: true,
+        body: { password },
+      })
+      setResetMatchPasskeyMeta({
+        configured: Boolean(result?.configured),
+        updatedAt: result?.updatedAt ?? null,
+      })
+      return result
+    },
+    [requestJson],
+  )
+
   const uploadAvatar = useCallback(
     async (data) => {
       const body =
@@ -1015,11 +1035,12 @@ function AppShell() {
   const loadAdminData = useCallback(async () => {
     if (session.type !== 'admin') return null
 
-    const [teamResult, moderatorResult, teamRegResult, moderatorRegResult] = await Promise.all([
+    const [teamResult, moderatorResult, teamRegResult, moderatorRegResult, resetPasskeyResult] = await Promise.all([
       requestJson('/admin/teams', { auth: true }),
       requestJson('/admin/moderators', { auth: true }),
       requestJson('/admin/registrations/teams', { auth: true }),
       requestJson('/admin/registrations/moderators', { auth: true }),
+      requestJson('/admin/reset-match-password', { auth: true }),
     ])
 
     setTeams((previous) => {
@@ -1050,6 +1071,10 @@ function AppShell() {
 
     setTeamRegistrations(teamRegResult?.registrations ?? [])
     setModeratorRegistrations(moderatorRegResult?.registrations ?? [])
+    setResetMatchPasskeyMeta({
+      configured: Boolean(resetPasskeyResult?.configured),
+      updatedAt: resetPasskeyResult?.updatedAt ?? null,
+    })
 
     return true
   }, [requestJson, session.type])
@@ -1983,16 +2008,48 @@ function AppShell() {
     )
   }
 
-  const handleResetMatch = (matchId, actor = {}) => {
+  const handleResetMatch = async (matchId, actor = {}) => {
     const { moderatorId = null, isAdmin = false } = actor
     const match = activeMatches.find((item) => item.id === matchId)
     const useSocket = Boolean(match && (tournament?.backendId || match?.tournamentId))
+    let passkey = null
+
+    if (!isAdmin) {
+      const promptedPasskey = window.prompt('Enter reset match passkey provided by admin.')
+      if (promptedPasskey === null) {
+        return
+      }
+
+      passkey = promptedPasskey.trim()
+      if (!passkey) {
+        window.alert('Reset match passkey is required.')
+        return
+      }
+    }
+
     if (useSocket) {
       joinLiveMatchRoom(matchId)
       const socket = ensureSocket()
-      socket?.emit('liveMatch:reset', { matchId })
+      socket?.emit('liveMatch:reset', { matchId, passkey }, (response) => {
+        if (!response || response.ok) return
+        window.alert(response.message || 'Unable to reset match.')
+      })
       return
     }
+
+    if (!isAdmin) {
+      try {
+        await requestJson('/live-matches/reset/verify', {
+          method: 'POST',
+          auth: true,
+          body: { passkey },
+        })
+      } catch (error) {
+        window.alert(error?.message || 'Invalid reset match passkey.')
+        return
+      }
+    }
+
     finalizedMatchesRef.current.delete(matchId)
     setActiveMatches((previousMatches) =>
       previousMatches.map((match) => {
@@ -2461,6 +2518,8 @@ function AppShell() {
                 onSetProfilePassword={setProfilePassword}
                 onDeleteTeamProfile={deleteTeamAccount}
                 onDeleteModeratorProfile={deleteModeratorAccount}
+                resetMatchPasskeyMeta={resetMatchPasskeyMeta}
+                onSetResetMatchPasskey={setResetMatchPasskey}
               />
             </ProtectedRoute>
           }
