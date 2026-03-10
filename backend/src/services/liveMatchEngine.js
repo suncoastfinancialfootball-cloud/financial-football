@@ -13,6 +13,7 @@ const matches = new Map()
 const timerHandles = new Map()
 const liveMatchEvents = new EventEmitter()
 export const TIMER_GRACE_MS = 3000
+const DRAW_RESET_TOTAL_QUESTIONS = 10
 
 const withRunningTimerRemaining = (match) => {
   if (!match?.timer || match.timer.status !== 'running') return match
@@ -414,7 +415,7 @@ const finalizeMatch = async (match) => {
   const loserId = winnerId ? (winnerId === teamAId ? teamBId : teamAId) : null
 
   if (!winnerId || !loserId) {
-    resetMatch(match.id)
+    resetMatch(match.id, { totalQuestions: DRAW_RESET_TOTAL_QUESTIONS })
     return null
   }
 
@@ -662,12 +663,21 @@ export const resumeMatch = (matchId) => {
   return updated
 }
 
-export const resetMatch = async (matchId) => {
+export const resetMatch = async (matchId, options = {}) => {
   const match = getMatch(matchId)
   if (!match) return null
   const [teamAId, teamBId] = match.teams
-  const questionQueue =
-    match.tournamentId ? await drawQuestions(QUESTIONS_PER_TEAM * 2, match.tournamentId) : match.questionQueue ?? []
+  const requestedTotalQuestionsRaw = options?.totalQuestions
+  const requestedTotalQuestions =
+    Number.isInteger(requestedTotalQuestionsRaw) && requestedTotalQuestionsRaw > 0
+      ? requestedTotalQuestionsRaw
+      : null
+  const defaultTotalQuestions = QUESTIONS_PER_TEAM * 2
+  const targetTotalQuestions = requestedTotalQuestions ?? defaultTotalQuestions
+  const shouldDrawNewQuestions = Boolean(match.tournamentId) || requestedTotalQuestions !== null
+  const questionQueue = shouldDrawNewQuestions
+    ? await drawQuestions(targetTotalQuestions, match.tournamentId)
+    : match.questionQueue ?? []
   const reset = {
     ...match,
     scores: {
